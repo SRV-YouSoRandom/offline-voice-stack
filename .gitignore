@@ -11,3 +11,5 @@ dist/
 build/
 *.egg-info/
 .DS_Store
+*.wav
+!services/stt/tests/fixtures/sample.wav

@@ -1,24 +1,15 @@
 [project]
 name = "offline-voice-stack"
 version = "0.1.0"
-description = "Add your description here"
-authors = [
-    { name = "SRV-YouSoRandom", email = "sonu.de22@gmail.com" }
-]
+description = "Fully offline, real-time voice-to-voice assistant"
 requires-python = ">=3.12"
 dependencies = []
 
-[project.scripts]
-voice-assistant = "voice_assistant:main"
-
-[build-system]
-requires = ["uv_build>=0.12.18,<0.13.0"]
-build-backend = "uv_build"
+[tool.uv]
+package = false
 
 [tool.uv.workspace]
 members = [
-    "services/stt",
-    "services/tts",
     "orchestrator",
     "dashboard",
     "shared/protocol",

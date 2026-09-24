@@ -1,0 +1,31 @@
+version = 1
+revision = 3
+requires-python = ">=3.12"
+
+[manifest]
+members = [
+    "dashboard",
+    "offline-voice-stack",
+    "orchestrator",
+    "shared-protocol",
+]
+
+[[package]]
+name = "dashboard"
+version = "0.1.0"
+source = { editable = "dashboard" }
+
+[[package]]
+name = "offline-voice-stack"
+version = "0.1.0"
+source = { virtual = "." }
+
+[[package]]
+name = "orchestrator"
+version = "0.1.0"
+source = { editable = "orchestrator" }
+
+[[package]]
+name = "shared-protocol"
+version = "0.1.0"
+source = { editable = "shared/protocol" }
