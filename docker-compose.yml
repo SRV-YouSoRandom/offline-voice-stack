@@ -1,0 +1,33 @@
+services:
+  stt:
+    build:
+      context: ./services/stt
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./services/stt/models:/app/models:ro
+
+  llm:
+    build:
+      context: ./services/llm
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./services/llm/models:/app/models:ro
+    entrypoint: ["/app/bin/llama-server"]
+    command:
+      - "--model"
+      - "/app/models/Qwen3-4B-Q4_K_M.gguf"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8002"
+      - "--ctx-size"
+      - "4096"
+      - "--threads"
+      - "4"
+      - "--n-predict"
+      - "-1"
+      - "--jinja"
+      - "--chat-template-kwargs"
+      - '{"enable_thinking": false}'
