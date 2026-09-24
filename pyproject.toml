@@ -1,9 +1,9 @@
 [project]
-name = "voice-assistant"
+name = "offline-voice-stack"
 version = "0.1.0"
 description = "Add your description here"
 authors = [
-    { name = "Sourav", email = "sourav@brandshark.com" }
+    { name = "Sourav", email = "SRV-YouSoRandom" }
 ]
 requires-python = ">=3.12"
 dependencies = []
