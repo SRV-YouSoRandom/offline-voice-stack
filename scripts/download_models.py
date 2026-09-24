@@ -72,6 +72,14 @@ DIRECT_DOWNLOADS: list[DirectDownload] = [
         ),
         dest=REPO_ROOT / "services" / "tts" / "models" / "voices-v1.0.bin",
     ),
+        DirectDownload(
+        name="Kokoro-82M ONNX, fp16 (TTS benchmark)",
+        url=(
+            "https://github.com/thewh1teagle/kokoro-onnx/releases/"
+            "download/model-files-v1.0/kokoro-v1.0.fp16.onnx"
+        ),
+        dest=REPO_ROOT / "services" / "tts" / "models" / "kokoro-v1.0.fp16.onnx",
+    ),
 ]
 
 HF_DOWNLOADS: list[HFDownload] = [

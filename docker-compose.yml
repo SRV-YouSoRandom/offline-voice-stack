@@ -7,6 +7,16 @@ services:
     volumes:
       - ./services/stt/models:/app/models:ro
 
+  tts:
+    build:
+      context: ./services/tts
+    ports:
+      - "8003:8003"
+    volumes:
+      - ./services/tts/models:/app/models:ro
+    environment:
+      - TTS_MODEL_PATH=/app/models/kokoro-v1.0.fp16.onnx
+
   llm:
     build:
       context: ./services/llm
@@ -25,9 +35,10 @@ services:
       - "--ctx-size"
       - "4096"
       - "--threads"
-      - "4"
+      - "8"
       - "--n-predict"
       - "-1"
       - "--jinja"
       - "--chat-template-kwargs"
       - '{"enable_thinking": false}'
+
