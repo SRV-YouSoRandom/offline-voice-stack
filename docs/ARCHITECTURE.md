@@ -190,3 +190,28 @@ referenced here for context:
 
 Each phase has an explicit exit condition and is completed in full,
 including tests where applicable, before moving to the next.
+
+## 10. Deferred work
+
+### AMD GPU offload via Vulkan
+
+The LLM service currently runs CPU-only. The dev laptop has an integrated
+AMD GPU (496 MB dedicated, 7.7 GB shared system memory, not a discrete
+card). CPU decode was confirmed memory-bandwidth-bound rather than
+thread-bound (doubling threads from 4 to 8 produced no measurable change
+in tokens per second).
+
+A real path exists: llama.cpp's Vulkan backend can target AMD GPUs,
+including integrated ones, and WSL2 exposes GPU access to containers
+through Microsoft's DirectX-to-Vulkan translation layer. This would need:
+
+- A different base image carrying Mesa's Vulkan driver.
+- `llama-server` rebuilt with `GGML_VULKAN=1`.
+- Docker Desktop's GPU passthrough enabled.
+- A `docker-compose.gpu.yml` override, per the hardware assumptions in
+  section 7.
+
+Deferred rather than attempted now, since it is unproven on integrated
+AMD hardware specifically and adds real setup risk mid-build. Revisit
+during Phase 4 (streaming and latency optimization), where the actual
+CPU-only latency numbers will show whether this is worth the effort.
