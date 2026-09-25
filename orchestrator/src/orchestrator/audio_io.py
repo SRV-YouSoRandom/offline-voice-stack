@@ -11,18 +11,20 @@ class AudioIO:
 
     def __init__(self):
         self._input_queue: queue.Queue = queue.Queue()
-        self._stream: sd.Stream | None = None
+        self._stream: sd.InputStream | None = None
 
-    def _callback(self, indata, outdata, frames, time_info, status) -> None:
+    def _callback(self, indata, frames, time_info, status) -> None:
         if status:
             print(f"audio status: {status}")
 
         mono = indata[:, 0].copy()
         self._input_queue.put(mono)
-        outdata[:, 0] = mono
 
     def start(self) -> None:
-        self._stream = sd.Stream(
+        while not self._input_queue.empty():
+            self._input_queue.get_nowait()
+
+        self._stream = sd.InputStream(
             samplerate=self.SAMPLE_RATE,
             blocksize=self.FRAME_SAMPLES,
             channels=self.CHANNELS,
