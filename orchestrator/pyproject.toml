@@ -3,12 +3,14 @@ name = "orchestrator"
 version = "0.1.0"
 description = "Native audio orchestrator for offline-voice-stack"
 requires-python = ">=3.12"
+
 dependencies = [
     "sounddevice>=0.5.0",
     "numpy>=1.26",
     "onnxruntime>=1.19",
     "websockets>=13.0",
     "requests>=2.32",
+    "openwakeword>=0.6.0",
 ]
 
 [build-system]
