@@ -215,3 +215,21 @@ Deferred rather than attempted now, since it is unproven on integrated
 AMD hardware specifically and adds real setup risk mid-build. Revisit
 during Phase 4 (streaming and latency optimization), where the actual
 CPU-only latency numbers will show whether this is worth the effort.
+
+### Barge-in detection: dual-signal gating
+
+Initial barge-in detection used Silero VAD probability alone. Testing
+with wired earbuds carrying an inline mic revealed a failure mode:
+audio leaking from the earbud drivers into the inline mic (a known
+acoustic coupling issue with that hardware pairing) registered as
+high-confidence speech, VAD probability alone cannot distinguish "real
+user speech" from "leaked assistant audio picked up by a mic
+physically close to the output," since both are genuinely
+speech-shaped signals.
+
+Measured RMS energy across both cases showed a clear, wide separation:
+leaked audio stayed below 0.007, genuine interruptions measured 0.03
+and above. Barge-in detection now requires both VAD probability above
+threshold and RMS energy above threshold to agree before triggering,
+eliminating false interruptions from this failure mode while keeping
+genuine interruptions responsive.
