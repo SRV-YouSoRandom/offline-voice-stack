@@ -103,4 +103,4 @@ offline-voice-stack/
 
 - Barge-in detection assumes a mic not acoustically coupled to the output device (headphones without an inline mic, or a boom mic). Wired earbuds with an inline mic will false-trigger from driver leakage even with the RMS gate; this is a hardware limitation, not a software one, real acoustic echo cancellation would require a reference signal of the output audio, out of scope here.
 - GPU acceleration is not implemented; the LLM and STT services run CPU-only. A Vulkan-based path for the AMD integrated GPU present on the dev machine is documented as deferred work in `docs/ARCHITECTURE.md`.
-- No conversation memory across turns; each turn is stateless from the LLM's perspective.
+- Conversation history is kept in memory for the life of the session (capped at 20 messages, roughly 10 exchanges) and is not persisted to disk; restarting the orchestrator clears it.
