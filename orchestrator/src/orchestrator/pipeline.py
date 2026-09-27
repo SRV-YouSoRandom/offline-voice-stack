@@ -198,7 +198,17 @@ async def run_pipeline(settings: Settings, event_bus: EventBus) -> None:
 
                     stt_start = time.perf_counter()
                     print("transcribing...")
-                    transcript = await stt_client.transcribe(pcm_bytes, settings.stt_uri)
+
+                    try:
+                        transcript = await stt_client.transcribe(pcm_bytes, settings.stt_uri)
+                    except RuntimeError as exc:
+                        print(f"stt failed: {exc}")
+                        await event_bus.publish({"type": "error", "stage": "stt", "message": str(exc)})
+                        state = WAITING
+                        await event_bus.publish({"type": "state", "value": WAITING})
+                        print("say the wake word to start")
+                        continue
+
                     await event_bus.publish({
                         "type": "latency",
                         "stage": "stt",
@@ -240,6 +250,15 @@ async def run_pipeline(settings: Settings, event_bus: EventBus) -> None:
                     await event_bus.publish({"type": "interrupted"})
 
                 if speaking_task.done():
+                    task_exception = speaking_task.exception()
+                    if task_exception is not None:
+                        print(f"speak_reply failed: {task_exception}")
+                        await event_bus.publish({
+                            "type": "error",
+                            "stage": "speak_reply",
+                            "message": str(task_exception),
+                        })
+
                     if interrupt_event.is_set():
                         state = RECORDING
                         await event_bus.publish({"type": "state", "value": RECORDING})

@@ -7,6 +7,7 @@ dependencies = []
 
 [tool.uv]
 package = false
+environments = ["sys_platform == 'win32'"]
 
 [tool.uv.workspace]
 members = [
@@ -14,3 +15,7 @@ members = [
     "dashboard",
     "shared/protocol",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
