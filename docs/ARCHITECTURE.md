@@ -233,3 +233,18 @@ and above. Barge-in detection now requires both VAD probability above
 threshold and RMS energy above threshold to agree before triggering,
 eliminating false interruptions from this failure mode while keeping
 genuine interruptions responsive.
+
+### tts_ttfa latency investigation
+
+Dashboard showed tts_ttfa (time from turn start to first audio) at
+2.74s in one exchange, notably higher than stt (0.92s) and llm_ttft
+(0.50s). Isolated TTS calls (scripts/diagnose_tts_ttfa.py) measured
+consistently under 0.6s with no warm-up cost across repeated calls,
+ruling out the TTS service itself as the cause. Since tts_ttfa is
+measured from turn start, it includes llm_ttft plus the time to
+generate the remainder of the first sentence plus the TTS call
+itself. The gap is explained by CPU LLM decode speed (roughly 11
+tokens/second, measured in Phase 1), consistent with the length of
+the first sentence in that exchange. No fix applied; this confirms
+the CPU decode bottleneck already identified in Phase 1 rather than
+revealing a new one.
