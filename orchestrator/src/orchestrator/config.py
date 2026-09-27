@@ -18,6 +18,8 @@ class Settings:
     stt_uri: str
     llm_uri: str
     tts_uri: str
+    event_bus_host: str
+    event_bus_port: int
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -34,4 +36,6 @@ class Settings:
             stt_uri=os.environ.get("STT_URI", "ws://localhost:8001"),
             llm_uri=os.environ.get("LLM_URI", "http://localhost:8002/v1/chat/completions"),
             tts_uri=os.environ.get("TTS_URI", "ws://localhost:8003"),
+            event_bus_host=os.environ.get("EVENT_BUS_HOST", "0.0.0.0"),
+            event_bus_port=int(os.environ.get("EVENT_BUS_PORT", "8765")),
         )

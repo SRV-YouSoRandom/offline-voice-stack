@@ -1,6 +1,7 @@
 import asyncio
 import queue
 import threading
+import time
 
 import numpy as np
 import sounddevice as sd
@@ -8,6 +9,7 @@ import sounddevice as sd
 from orchestrator.audio_io import AudioIO
 from orchestrator.clients import llm_client, stt_client, tts_client
 from orchestrator.config import Settings
+from orchestrator.event_bus import EventBus
 from orchestrator.recorder import float32_to_pcm16
 from orchestrator.sentence_chunker import SentenceChunker
 from orchestrator.vad import SileroVAD
@@ -28,7 +30,7 @@ def _llm_stream_worker(transcript, uri, token_queue, interrupt_event):
         token_queue.put(None)
 
 
-async def produce_sentences(transcript, settings, sentence_queue, interrupt_event):
+async def produce_sentences(transcript, settings, sentence_queue, interrupt_event, event_bus, turn_start):
     token_queue: queue.Queue = queue.Queue()
     thread = threading.Thread(
         target=_llm_stream_worker,
@@ -40,6 +42,7 @@ async def produce_sentences(transcript, settings, sentence_queue, interrupt_even
     chunker = SentenceChunker()
     loop = asyncio.get_running_loop()
     reply_parts = []
+    first_token_seen = False
 
     while True:
         if interrupt_event.is_set():
@@ -49,20 +52,34 @@ async def produce_sentences(transcript, settings, sentence_queue, interrupt_even
         if token is None:
             break
 
+        if not first_token_seen:
+            first_token_seen = True
+            await event_bus.publish({
+                "type": "latency",
+                "stage": "llm_ttft",
+                "seconds": time.perf_counter() - turn_start,
+            })
+
         reply_parts.append(token)
         for sentence in chunker.feed(token):
             await sentence_queue.put(sentence)
+            await event_bus.publish({"type": "reply_partial", "text": "".join(reply_parts)})
 
     remaining = chunker.flush()
     if remaining and not interrupt_event.is_set():
         await sentence_queue.put(remaining)
 
     await sentence_queue.put(None)
+
     if reply_parts:
-        print(f"assistant: {''.join(reply_parts)}")
+        full_reply = "".join(reply_parts)
+        print(f"assistant: {full_reply}")
+        await event_bus.publish({"type": "assistant_reply", "text": full_reply})
 
 
-async def synthesize_sentences(sentence_queue, audio_queue, settings, interrupt_event):
+async def synthesize_sentences(sentence_queue, audio_queue, settings, interrupt_event, event_bus, turn_start):
+    first_audio_seen = False
+
     while True:
         sentence = await sentence_queue.get()
         if sentence is None or interrupt_event.is_set():
@@ -70,6 +87,15 @@ async def synthesize_sentences(sentence_queue, audio_queue, settings, interrupt_
             break
 
         samples, sample_rate = await tts_client.synthesize(sentence, settings.tts_uri)
+
+        if not first_audio_seen:
+            first_audio_seen = True
+            await event_bus.publish({
+                "type": "latency",
+                "stage": "tts_ttfa",
+                "seconds": time.perf_counter() - turn_start,
+            })
+
         await audio_queue.put((samples, sample_rate))
 
 
@@ -90,25 +116,25 @@ async def play_audio(audio_queue, interrupt_event):
         await loop.run_in_executor(None, _play_blocking, samples, sample_rate)
 
 
-async def speak_reply(transcript, settings, interrupt_event):
+async def speak_reply(transcript, settings, interrupt_event, event_bus, turn_start):
     sentence_queue: asyncio.Queue = asyncio.Queue()
     audio_queue: asyncio.Queue = asyncio.Queue()
 
     await asyncio.gather(
-        produce_sentences(transcript, settings, sentence_queue, interrupt_event),
-        synthesize_sentences(sentence_queue, audio_queue, settings, interrupt_event),
+        produce_sentences(transcript, settings, sentence_queue, interrupt_event, event_bus, turn_start),
+        synthesize_sentences(sentence_queue, audio_queue, settings, interrupt_event, event_bus, turn_start),
         play_audio(audio_queue, interrupt_event),
     )
 
 
-async def main() -> None:
-    settings = Settings.from_env()
+async def run_pipeline(settings: Settings, event_bus: EventBus) -> None:
     vad = SileroVAD(settings.vad_model_path, threshold=settings.vad_threshold)
     wake_word = WakeWordDetector(threshold=settings.wake_word_threshold)
     audio = AudioIO()
 
     print("wake word pipeline, press ctrl+c to stop")
     print("say the wake word to start")
+    await event_bus.publish({"type": "state", "value": WAITING})
 
     audio.start()
     loop = asyncio.get_running_loop()
@@ -120,6 +146,7 @@ async def main() -> None:
     consecutive_silence = 0
     speaking_task: asyncio.Task | None = None
     interrupt_event = threading.Event()
+    turn_start = 0.0
 
     try:
         while True:
@@ -132,7 +159,9 @@ async def main() -> None:
                 detected = wake_word.feed(frame)
                 if detected:
                     print(f"wake word detected: {detected}")
+                    await event_bus.publish({"type": "wake_word", "name": detected})
                     state = RECORDING
+                    await event_bus.publish({"type": "state", "value": RECORDING})
                     vad.reset()
                     utterance_frames = []
                     pre_buffer = []
@@ -167,16 +196,25 @@ async def main() -> None:
                     utterance = np.concatenate(utterance_frames)
                     pcm_bytes = float32_to_pcm16(utterance)
 
+                    stt_start = time.perf_counter()
                     print("transcribing...")
                     transcript = await stt_client.transcribe(pcm_bytes, settings.stt_uri)
+                    await event_bus.publish({
+                        "type": "latency",
+                        "stage": "stt",
+                        "seconds": time.perf_counter() - stt_start,
+                    })
                     print(f"you said: {transcript}")
+                    await event_bus.publish({"type": "transcript", "text": transcript})
 
                     if transcript.strip():
                         print("thinking...")
                         interrupt_event = threading.Event()
+                        turn_start = time.perf_counter()
                         state = SPEAKING
+                        await event_bus.publish({"type": "state", "value": SPEAKING})
                         speaking_task = asyncio.create_task(
-                            speak_reply(transcript, settings, interrupt_event)
+                            speak_reply(transcript, settings, interrupt_event, event_bus, turn_start)
                         )
                         vad.reset()
                         consecutive_speech = 0
@@ -184,6 +222,7 @@ async def main() -> None:
                     else:
                         print("no speech detected, listening for wake word again")
                         state = WAITING
+                        await event_bus.publish({"type": "state", "value": WAITING})
 
             elif state == SPEAKING:
                 probability = vad.process_frame(frame)
@@ -198,10 +237,12 @@ async def main() -> None:
                     print("interrupted, stopping playback")
                     interrupt_event.set()
                     sd.stop()
+                    await event_bus.publish({"type": "interrupted"})
 
                 if speaking_task.done():
                     if interrupt_event.is_set():
                         state = RECORDING
+                        await event_bus.publish({"type": "state", "value": RECORDING})
                         vad.reset()
                         utterance_frames = []
                         pre_buffer = []
@@ -210,13 +251,25 @@ async def main() -> None:
                         print("listening...")
                     else:
                         state = WAITING
+                        await event_bus.publish({"type": "state", "value": WAITING})
                         print("say the wake word to start")
 
-    except KeyboardInterrupt:
-        print("stopping")
     finally:
         audio.stop()
 
 
+async def main() -> None:
+    settings = Settings.from_env()
+    event_bus = EventBus()
+
+    await asyncio.gather(
+        run_pipeline(settings, event_bus),
+        event_bus.serve(settings.event_bus_host, settings.event_bus_port),
+    )
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("stopping")
