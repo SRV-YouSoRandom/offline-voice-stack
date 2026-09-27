@@ -2,7 +2,7 @@
 
 A zero-cloud-dependency, real-time voice-to-voice personal assistant. Speech-to-text, language generation, and text-to-speech all run locally, no API keys, no internet requirement once the models are downloaded.
 
-<!-- Demo video/GIF goes here -->
+[offline-voice-agent.webm](https://github.com/user-attachments/assets/353c3b64-8d58-4836-8549-381e63dcb8e7)
 
 ## Architecture
 
