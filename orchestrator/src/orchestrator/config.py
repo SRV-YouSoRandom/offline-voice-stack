@@ -15,6 +15,7 @@ class Settings:
     barge_in_threshold: float
     barge_in_onset_frames: int
     barge_in_rms_threshold: float
+    max_history_messages: int
     stt_uri: str
     llm_uri: str
     tts_uri: str
@@ -33,6 +34,7 @@ class Settings:
             barge_in_threshold=float(os.environ.get("BARGE_IN_THRESHOLD", "0.8")),
             barge_in_onset_frames=int(os.environ.get("BARGE_IN_ONSET_FRAMES", "10")),
             barge_in_rms_threshold=float(os.environ.get("BARGE_IN_RMS_THRESHOLD", "0.015")),
+            max_history_messages=int(os.environ.get("MAX_HISTORY_MESSAGES", "20")),
             stt_uri=os.environ.get("STT_URI", "ws://localhost:8001"),
             llm_uri=os.environ.get("LLM_URI", "http://localhost:8002/v1/chat/completions"),
             tts_uri=os.environ.get("TTS_URI", "ws://localhost:8003"),

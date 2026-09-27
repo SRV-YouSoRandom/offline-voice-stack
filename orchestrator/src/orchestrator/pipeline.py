@@ -20,9 +20,14 @@ RECORDING = "recording"
 SPEAKING = "speaking"
 
 
-def _llm_stream_worker(transcript, uri, token_queue, interrupt_event):
+def _trim_history(history: list, max_messages: int) -> None:
+    while len(history) > max_messages:
+        history.pop(0)
+
+
+def _llm_stream_worker(messages, uri, token_queue, interrupt_event):
     try:
-        for token in llm_client.stream_chat(transcript, uri):
+        for token in llm_client.stream_chat(messages, uri):
             if interrupt_event.is_set():
                 break
             token_queue.put(token)
@@ -30,11 +35,11 @@ def _llm_stream_worker(transcript, uri, token_queue, interrupt_event):
         token_queue.put(None)
 
 
-async def produce_sentences(transcript, settings, sentence_queue, interrupt_event, event_bus, turn_start):
+async def produce_sentences(messages, settings, sentence_queue, interrupt_event, event_bus, turn_start, conversation_history):
     token_queue: queue.Queue = queue.Queue()
     thread = threading.Thread(
         target=_llm_stream_worker,
-        args=(transcript, settings.llm_uri, token_queue, interrupt_event),
+        args=(messages, settings.llm_uri, token_queue, interrupt_event),
         daemon=True,
     )
     thread.start()
@@ -75,6 +80,7 @@ async def produce_sentences(transcript, settings, sentence_queue, interrupt_even
         full_reply = "".join(reply_parts)
         print(f"assistant: {full_reply}")
         await event_bus.publish({"type": "assistant_reply", "text": full_reply})
+        conversation_history.append({"role": "assistant", "content": full_reply})
 
 
 async def synthesize_sentences(sentence_queue, audio_queue, settings, interrupt_event, event_bus, turn_start):
@@ -116,12 +122,12 @@ async def play_audio(audio_queue, interrupt_event):
         await loop.run_in_executor(None, _play_blocking, samples, sample_rate)
 
 
-async def speak_reply(transcript, settings, interrupt_event, event_bus, turn_start):
+async def speak_reply(messages, settings, interrupt_event, event_bus, turn_start, conversation_history):
     sentence_queue: asyncio.Queue = asyncio.Queue()
     audio_queue: asyncio.Queue = asyncio.Queue()
 
     await asyncio.gather(
-        produce_sentences(transcript, settings, sentence_queue, interrupt_event, event_bus, turn_start),
+        produce_sentences(messages, settings, sentence_queue, interrupt_event, event_bus, turn_start, conversation_history),
         synthesize_sentences(sentence_queue, audio_queue, settings, interrupt_event, event_bus, turn_start),
         play_audio(audio_queue, interrupt_event),
     )
@@ -147,6 +153,7 @@ async def run_pipeline(settings: Settings, event_bus: EventBus) -> None:
     speaking_task: asyncio.Task | None = None
     interrupt_event = threading.Event()
     turn_start = 0.0
+    conversation_history: list = []
 
     try:
         while True:
@@ -223,8 +230,15 @@ async def run_pipeline(settings: Settings, event_bus: EventBus) -> None:
                         turn_start = time.perf_counter()
                         state = SPEAKING
                         await event_bus.publish({"type": "state", "value": SPEAKING})
+
+                        conversation_history.append({"role": "user", "content": transcript})
+                        _trim_history(conversation_history, settings.max_history_messages)
+                        messages_for_llm = list(conversation_history)
+
                         speaking_task = asyncio.create_task(
-                            speak_reply(transcript, settings, interrupt_event, event_bus, turn_start)
+                            speak_reply(
+                                messages_for_llm, settings, interrupt_event, event_bus, turn_start, conversation_history
+                            )
                         )
                         vad.reset()
                         consecutive_speech = 0

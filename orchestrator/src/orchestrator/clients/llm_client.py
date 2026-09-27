@@ -11,12 +11,9 @@ SYSTEM_PROMPT = (
 )
 
 
-def stream_chat(text: str, uri: str, max_retries: int = 5, retry_delay_seconds: float = 2.0):
+def stream_chat(messages: list[dict], uri: str, max_retries: int = 5, retry_delay_seconds: float = 2.0):
     payload = {
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": text},
-        ],
+        "messages": [{"role": "system", "content": SYSTEM_PROMPT}] + messages,
         "chat_template_kwargs": {"enable_thinking": False},
         "stream": True,
     }

@@ -23,7 +23,7 @@ def test_llm_service_responds_to_prompt():
     settings = Settings.from_env()
 
     reply = ""
-    for token in llm_client.stream_chat("Say hello in one word.", settings.llm_uri):
+    for token in llm_client.stream_chat([{"role": "user", "content": "Say hello in one word."}], settings.llm_uri):
         reply += token
 
     assert len(reply.strip()) > 0
@@ -43,7 +43,7 @@ async def test_full_round_trip():
     settings = Settings.from_env()
 
     reply = ""
-    for token in llm_client.stream_chat("Say hello in one word.", settings.llm_uri):
+    for token in llm_client.stream_chat([{"role": "user", "content": "Say hello in one word."}], settings.llm_uri):
         reply += token
 
     assert len(reply.strip()) > 0
